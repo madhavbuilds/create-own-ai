@@ -66,6 +66,12 @@ after(() => {
   fakeOllama?.close();
 });
 
+// Raw request (fetch would normalize the path and won't let us fake the Host header).
+// The body is drained so the socket closes cleanly on every OS.
+const rawGet = (p, headers = {}) => new Promise((resolve, reject) => {
+  http.get(base + p, { headers }, (r) => { r.resume(); r.on('end', () => resolve(r.statusCode)); }).on('error', reject);
+});
+
 const post = (p, body, headers = {}) =>
   fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
 
@@ -81,9 +87,7 @@ test('reports status and installed models', async () => {
 test('serves the UI with the app name filled in', async () => {
   const html = await (await fetch(base)).text();
   assert.match(html, /<title>srv-app<\/title>/);
-  // fetch() would normalize "..", so send the raw, encoded path.
-  const traversal = await new Promise((resolve) => http.get(`${base}/%2e%2e/package.json`, (r) => resolve(r.statusCode)));
-  assert.equal(traversal, 404);
+  assert.equal(await rawGet('/%2e%2e/package.json'), 404);
 });
 
 test('adds text and PDF files, then answers with sources', async () => {
@@ -113,10 +117,7 @@ test('blocks requests from other websites and rebound hostnames', async () => {
   assert.equal(evil.status, 403);
   const plain = await fetch(`${base}/api/files`, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: '{"name":"x","text":"x"}' });
   assert.equal(plain.status, 403);
-  const rebound = await new Promise((resolve) => {
-    http.get(`${base}/api/files`, { headers: { Host: 'attacker.example' } }, (r) => resolve(r.statusCode));
-  });
-  assert.equal(rebound, 403);
+  assert.equal(await rawGet('/api/files', { Host: 'attacker.example' }), 403);
 });
 
 test('rejects unreadable uploads with a helpful message', async () => {
