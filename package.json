@@ -1,0 +1,47 @@
+{
+  "name": "create-local-ai",
+  "version": "1.0.0",
+  "description": "Scaffold an AI app that runs 100% on your own machine. Chat with your PDFs, docs and code. No API keys, no cloud, no per-user cost.",
+  "bin": {
+    "create-local-ai": "bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "templates"
+  ],
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "keywords": [
+    "ai",
+    "local-ai",
+    "local-llm",
+    "ollama",
+    "offline",
+    "private",
+    "llm",
+    "rag",
+    "chat-with-pdf",
+    "chat-with-files",
+    "qwen",
+    "gemma",
+    "scaffold",
+    "create",
+    "starter",
+    "template",
+    "zero-dependency"
+  ],
+  "author": "Madhav Panchal",
+  "homepage": "https://github.com/madhavbuilds/create-local-ai#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/madhavbuilds/create-local-ai.git"
+  },
+  "bugs": {
+    "url": "https://github.com/madhavbuilds/create-local-ai/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Show what you built / ask a question
+    url: https://github.com/madhavbuilds/create-local-ai/discussions
+    about: Share your app or ask for help in Discussions

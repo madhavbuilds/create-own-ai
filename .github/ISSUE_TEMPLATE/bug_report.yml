@@ -1,0 +1,24 @@
+name: Bug report
+description: Something doesn't work
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: OS, Node and Ollama versions
+      placeholder: macOS 15, Node 22.11, Ollama 0.12
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Model
+      placeholder: qwen3:4b-instruct
+  - type: textarea
+    attributes:
+      label: Terminal output or browser console errors
+      render: text

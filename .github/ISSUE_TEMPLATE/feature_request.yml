@@ -1,0 +1,13 @@
+name: Feature or template idea
+description: Suggest a feature or a new template
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes:
+      label: What would you like to build or do?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Anything else?
+      description: Links, sketches, similar tools.
