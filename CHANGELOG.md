@@ -5,7 +5,7 @@
 First public release.
 
 ### CLI
-- `npx create-local-ai <name>`, or `.` for the current folder
+- `npx create-own-ai <name>`, or `.` for the current folder
 - Creates a git repo with a first commit (`--no-git` to skip)
 - Checks whether Ollama is running and prints next steps for npm, pnpm, yarn or bun
 - `--version`, `--help`, `--template`

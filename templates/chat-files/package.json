@@ -2,7 +2,7 @@
   "name": "{{PACKAGE_NAME}}",
   "version": "0.1.0",
   "private": true,
-  "description": "Chat with your files, 100% on your machine. Made with create-local-ai.",
+  "description": "Chat with your files, 100% on your machine. Made with create-own-ai.",
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js"

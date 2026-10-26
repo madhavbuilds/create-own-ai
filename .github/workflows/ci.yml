@@ -28,5 +28,5 @@ jobs:
           mkdir -p "$RUNNER_TEMP/scaffold"
           npm pack --pack-destination "$RUNNER_TEMP/scaffold"
           cd "$RUNNER_TEMP/scaffold"
-          npm exec --yes --package=./$(ls *.tgz) -- create-local-ai smoke-app --no-git
+          npm exec --yes --package=./$(ls *.tgz) -- create-own-ai smoke-app --no-git
           test -f smoke-app/server.js && test -f smoke-app/.gitignore

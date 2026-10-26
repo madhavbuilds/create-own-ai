@@ -5,8 +5,8 @@ Thanks for helping make local AI easier to build with.
 ## Running it locally
 
 ```bash
-git clone https://github.com/madhavbuilds/create-local-ai
-cd create-local-ai
+git clone https://github.com/madhavbuilds/create-own-ai
+cd create-own-ai
 npm test                           # unit + end-to-end tests, no model needed
 node bin/cli.js /tmp/test-app      # scaffold an app from your working copy
 cd /tmp/test-app && npm run dev

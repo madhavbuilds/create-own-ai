@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// create-local-ai: copies a template into a new folder and prints next steps.
-// Zero dependencies on purpose, so `npx create-local-ai` is instant.
+// create-own-ai: copies a template into a new folder and prints next steps.
+// Zero dependencies on purpose, so `npx create-own-ai` is instant.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -36,11 +36,11 @@ function parseArgs(argv) {
 
 function usage() {
   console.log(`
-${c.bold('create-local-ai')} ${c.dim(`v${version}`)} - build AI apps that run 100% on your machine
+${c.bold('create-own-ai')} ${c.dim(`v${version}`)} - build AI apps that run 100% on your machine
 
 Usage:
-  npx create-local-ai ${c.cyan('<app-name>')} [options]
-  npx create-local-ai ${c.cyan('.')}            ${c.dim('scaffold into the current (empty) folder')}
+  npx create-own-ai ${c.cyan('<app-name>')} [options]
+  npx create-own-ai ${c.cyan('.')}            ${c.dim('scaffold into the current (empty) folder')}
 
 Options:
   -t, --template <name>   Template to use (default: chat-files)
@@ -90,7 +90,7 @@ function initGit(dir) {
   try {
     execFileSync('git', ['init', '-q'], { cwd: dir, stdio: 'ignore' });
     execFileSync('git', ['add', '-A'], { cwd: dir, stdio: 'ignore' });
-    execFileSync('git', ['commit', '-q', '-m', 'Initial commit from create-local-ai'], { cwd: dir, stdio: 'ignore' });
+    execFileSync('git', ['commit', '-q', '-m', 'Initial commit from create-own-ai'], { cwd: dir, stdio: 'ignore' });
     return true;
   } catch {
     fs.rmSync(path.join(dir, '.git'), { recursive: true, force: true });
@@ -114,7 +114,7 @@ async function main() {
   if (args.help) return usage();
   if (args.unknown.length) console.log(c.yellow(`Ignoring unknown option${args.unknown.length > 1 ? 's' : ''}: ${args.unknown.join(' ')}`));
 
-  console.log(`\n${c.bold('create-local-ai')} ${c.dim('- private, offline, free')}\n`);
+  console.log(`\n${c.bold('create-own-ai')} ${c.dim('- private, offline, free')}\n`);
 
   const interactive = process.stdin.isTTY;
   const rl = interactive ? readline.createInterface({ input: process.stdin, output: process.stdout }) : null;

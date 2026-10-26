@@ -1,22 +1,22 @@
 <div align="center">
 
-# create-local-ai
+# create-own-ai
 
 **Build AI apps that run 100% on your own computer.**<br />
 No API keys. No cloud. No per-user bill. Your data never leaves the machine.
 
-[![npm](https://img.shields.io/npm/v/create-local-ai?color=ea580c)](https://www.npmjs.com/package/create-local-ai)
-[![CI](https://github.com/madhavbuilds/create-local-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/madhavbuilds/create-local-ai/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/create-own-ai?color=ea580c)](https://www.npmjs.com/package/create-own-ai)
+[![CI](https://github.com/madhavbuilds/create-own-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/madhavbuilds/create-own-ai/actions/workflows/ci.yml)
 [![dependencies](https://img.shields.io/badge/dependencies-0-16a34a)](package.json)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ```bash
-npx create-local-ai my-app
+npx create-own-ai my-app
 cd my-app
 npm run dev
 ```
 
-![Demo: add a lease agreement, ask when rent is due, get a cited answer from a local model](https://raw.githubusercontent.com/madhavbuilds/create-local-ai/main/docs/demo.gif)
+![Demo: add a lease agreement, ask when rent is due, get a cited answer from a local model](https://raw.githubusercontent.com/madhavbuilds/create-own-ai/main/docs/demo.gif)
 
 </div>
 
@@ -50,7 +50,7 @@ Local models fix all four, but wiring one into an app is still fiddly. This tool
 | 📦 **Zero dependencies** | Plain Node.js. Nothing to install, nothing to break, nothing to audit but your own code. |
 | 🌗 **Polished UI** | Light and dark mode, mobile layout, keyboard shortcuts, chats that survive a reload. |
 
-<p align="center"><img src="https://raw.githubusercontent.com/madhavbuilds/create-local-ai/main/docs/screenshot-dark.png" alt="The app in dark mode, answering questions about a lease with citations" width="800" /></p>
+<p align="center"><img src="https://raw.githubusercontent.com/madhavbuilds/create-own-ai/main/docs/screenshot-dark.png" alt="The app in dark mode, answering questions about a lease with citations" width="800" /></p>
 
 ## How it works
 
@@ -85,9 +85,9 @@ The model downloads once (2.5 GB for the smallest). After that, everything works
 ## Options
 
 ```bash
-npx create-local-ai my-app      # new folder
-npx create-local-ai .           # current (empty) folder
-npx create-local-ai my-app --no-git
+npx create-own-ai my-app      # new folder
+npx create-own-ai .           # current (empty) folder
+npx create-own-ai my-app --no-git
 
 # inside your app
 MODEL=llama3.2:3b npm run dev       # use any Ollama model
@@ -106,7 +106,7 @@ Works with `npm`, `pnpm`, `yarn` and `bun`.
 - A support bot over your product docs that costs $0 to run
 - A code-base explainer for your own projects
 
-Built something? [Show it off in Discussions](https://github.com/madhavbuilds/create-local-ai/discussions). We'd love to see it.
+Built something? [Show it off in Discussions](https://github.com/madhavbuilds/create-own-ai/discussions). We'd love to see it.
 
 ## FAQ
 

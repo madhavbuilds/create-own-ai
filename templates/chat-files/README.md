@@ -1,6 +1,6 @@
 # {{APP_NAME}}
 
-Chat with your files, 100% on your machine. Made with [create-local-ai](https://github.com/madhavbuilds/create-local-ai).
+Chat with your files, 100% on your machine. Made with [create-own-ai](https://github.com/madhavbuilds/create-own-ai).
 
 ## Run it
 

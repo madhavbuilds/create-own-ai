@@ -1,9 +1,9 @@
 {
-  "name": "create-local-ai",
+  "name": "create-own-ai",
   "version": "1.0.0",
   "description": "Scaffold an AI app that runs 100% on your own machine. Chat with your PDFs, docs and code. No API keys, no cloud, no per-user cost.",
   "bin": {
-    "create-local-ai": "bin/cli.js"
+    "create-own-ai": "bin/cli.js"
   },
   "files": [
     "bin",
@@ -32,13 +32,13 @@
     "zero-dependency"
   ],
   "author": "Madhav Panchal",
-  "homepage": "https://github.com/madhavbuilds/create-local-ai#readme",
+  "homepage": "https://github.com/madhavbuilds/create-own-ai#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/madhavbuilds/create-local-ai.git"
+    "url": "git+https://github.com/madhavbuilds/create-own-ai.git"
   },
   "bugs": {
-    "url": "https://github.com/madhavbuilds/create-local-ai/issues"
+    "url": "https://github.com/madhavbuilds/create-own-ai/issues"
   },
   "engines": {
     "node": ">=18"
