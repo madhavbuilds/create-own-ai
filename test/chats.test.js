@@ -12,6 +12,7 @@ test('creates, lists, reloads and deletes chats', () => {
   const b = store.create();
   b.messages.push({ role: 'user', content: 'hi' });
   store.save(b);
+  a.updated = b.updated - 1000; // both can land in the same millisecond on a fast machine
   assert.deepEqual(store.list().map((c) => [c.title, c.count]), [['New chat', 1], ['First', 0]]);
 
   fs.writeFileSync(path.join(dir, 'chats', 'broken.json'), '{nope');
