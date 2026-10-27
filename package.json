@@ -1,6 +1,6 @@
 {
   "name": "create-own-ai",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Scaffold an AI app that runs 100% on your own machine. Chat with your PDFs, docs and code. No API keys, no cloud, no per-user cost.",
   "bin": {
     "create-own-ai": "bin/cli.js"

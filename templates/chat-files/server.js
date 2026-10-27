@@ -8,21 +8,29 @@ const os = require('node:os');
 const { spawn } = require('node:child_process');
 const ollama = require('./lib/ollama');
 const { FileIndex } = require('./lib/search');
+const { ChatStore } = require('./lib/chats');
 const { extractText, BINARY_TYPES } = require('./lib/extract');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '127.0.0.1';
 const PUBLIC = path.join(__dirname, 'public');
 const SAMPLES = path.join(__dirname, 'samples');
+const DATA = path.join(__dirname, 'data');
 const MAX_BODY = 50 * 1024 * 1024;
+// How much text the model reads at once, in tokens. Ollama's default (often 4096) is easy to
+// overflow with sources plus a long chat, and then it quietly drops the start of the conversation.
+const NUM_CTX = Number(process.env.NUM_CTX) || 8192;
+const MAX_SOURCES = 6;
 
 let model = ollama.pickModel();
-const index = new FileIndex(path.join(__dirname, 'data'));
+const index = new FileIndex(DATA);
+const chats = new ChatStore(DATA);
 
-const SYSTEM_PROMPT = `You are a helpful assistant that answers questions using the user's own files.
-Use the numbered sources below when they are relevant and cite them like [1] or [2].
-If the sources don't contain the answer, say so plainly, then answer from general knowledge if you can.
-Be concise.`;
+const SYSTEM_PROMPT = `You are a helpful assistant that answers questions about the user's own files.
+- Below are numbered sources for the latest question: passages from the user's files, each labeled with its file name. Use them and cite the ones you use like [1] or [2].
+- Different files are about different things. Don't mix facts from different files unless the question asks for that. If a follow-up question is unclear, assume it is about the same file as the conversation so far.
+- If the sources don't contain the answer, say so plainly, then answer from general knowledge if you can.
+- Be concise.`;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -82,47 +90,171 @@ function serveStatic(req, res) {
   fs.createReadStream(file).pipe(res);
 }
 
-// Finds what to show the model. Follow-ups like "tell me more" have no keywords of their own,
-// so the previous question is searched too. Broad asks ("summarize my files") match nothing,
-// so they get the start of the most recent files instead.
-function findSources(messages) {
-  const asks = messages.filter((m) => m.role === 'user').map((m) => m.content);
-  let sources = index.search(asks.slice(-1).join(' '), 5);
-  if (sources.length < 2 && asks.length > 1) sources = index.search(asks.slice(-2).join(' '), 5);
-  if (!sources.length) sources = index.overview(5);
-  return sources;
+const BROAD = /\b(summar\w*|overview|outline|tl;?dr|key points|main points|what('s| is) in)\b/i;
+const ALL_FILES = /\b(all|every|each)( of)? (my |the )?(files|documents|docs)\b|\beverything\b/i;
+
+// Picks the passages the model sees for a question. `history` is the conversation so far.
+// - A question that names a file ("what does the car insurance cover?") only looks in that file.
+// - Follow-ups ("and the notice period there?") also search the previous question, weighted
+//   lower, and favor the files the last answer used, so the chat stays on the same document.
+// - Weak matches are dropped: a passage from an unrelated file is how answers get mixed up.
+// - Broad asks ("summarize the lease") get the start of the file(s) instead.
+function findSources(question, history = []) {
+  if (!index.list().length) return [];
+  const named = index.namedIn(question);
+  const only = named.length ? named : null;
+  const prevQuestion = history.findLast((m) => m.role === 'user')?.content || '';
+  const lastFiles = new Set((history.findLast((m) => m.role === 'assistant')?.sources || []).map((s) => s.doc));
+
+  // The previous question only re-ranks what this one matched, so it can't drag in a file that
+  // has nothing to do with the new question. If this one matches nothing, it's used directly.
+  const key = (h) => `${h.doc}\0${h.i}`;
+  const current = index.search(question, 20, only);
+  const previous = prevQuestion ? index.search(prevQuestion, 20, only) : [];
+  const prevScore = new Map(previous.map((h) => [key(h), h.score]));
+  const pool = current.length ? current : previous;
+  const found = pool.map((h) => ({
+    ...h,
+    score: (h.score + (current.length ? 0.35 * (prevScore.get(key(h)) || 0) : 0)) * (!only && lastFiles.has(h.doc) ? 1.3 : 1),
+  }));
+
+  // Keep files that match about as well as the best one; within those, any decent passage.
+  let sources = found.sort((a, b) => b.score - a.score);
+  const top = sources[0]?.score || 0;
+  const best = {};
+  for (const s of sources) best[s.doc] = Math.max(best[s.doc] || 0, s.score);
+  sources = sources.filter((s) => best[s.doc] >= top * 0.5 && s.score >= top * 0.15).slice(0, MAX_SOURCES);
+
+  if (BROAD.test(question) && only) sources = index.overview(MAX_SOURCES, only);
+  else if (ALL_FILES.test(question) && !only) sources = index.overview(MAX_SOURCES);
+  else if (!sources.length) sources = index.overview(5, only);
+
+  // Read each file's passages together and in order, like the original document.
+  const order = [...new Set(sources.map((s) => s.doc))];
+  return sources.sort((a, b) => order.indexOf(a.doc) - order.indexOf(b.doc) || a.i - b.i).map(({ doc, i, text }) => ({ doc, i, text }));
 }
 
-// Streams NDJSON events to the browser: {type:'sources'}, {type:'thinking'|'token'}, {type:'done'|'error'}.
-async function handleChat(req, res) {
-  const { messages = [] } = await readBody(req);
-  const sources = findSources(messages);
+// What the model is shown of earlier turns: answers without reasoning or [n] markers (those
+// pointed at sources from another turn), newest turns first until the budget runs out.
+function modelHistory(messages, budgetChars) {
+  const out = [];
+  let used = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.error) continue;
+    let content = m.role === 'assistant'
+      ? String(m.content).replace(/<think>[\s\S]*?<\/think>/g, '').replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, '').trim()
+      : String(m.content);
+    // A long earlier answer only needs its gist; the full text would crowd out everything else.
+    if (content.length > 1500) content = `${content.slice(0, 1500)}…`;
+    if (!content) continue;
+    used += content.length;
+    if (used > budgetChars) break;
+    out.unshift({ role: m.role === 'assistant' ? 'assistant' : 'user', content });
+  }
+  while (out[0]?.role === 'assistant') out.shift();
+  return out;
+}
+
+// The sources for this question go in the system message (small models follow them better
+// there than inside the question), then the trimmed conversation, then the question.
+function buildPrompt(question, history, sources) {
   const files = index.list().map((f) => f.name);
-
+  const fileNote = files.length ? `The user's files: ${files.slice(0, 50).join(', ')}.` : 'The user has not added any files yet.';
   const context = sources.length
-    ? sources.map((s, i) => `[${i + 1}] (from ${s.doc})\n${s.text}`).join('\n\n')
-    : '(no files added yet)';
-  const fileNote = files.length ? `The user has added these files: ${files.slice(0, 50).join(', ')}.` : '';
+    ? `Sources for the latest question:\n\n${sources.map((s, n) => `[${n + 1}] (from ${s.doc})\n${s.text}`).join('\n\n')}`
+    : 'No sources matched this question.';
+  const system = `${SYSTEM_PROMPT}\n${fileNote}\n\n${context}`;
+  // ~3 characters per token, leaving room for the answer.
+  const budget = (NUM_CTX - 1500) * 3 - system.length - question.length;
+  return [{ role: 'system', content: system }, ...modelHistory(history, budget), { role: 'user', content: question }];
+}
 
-  const convo = [
-    { role: 'system', content: `${SYSTEM_PROMPT}\n${fileNote}\n\nSources:\n${context}` },
-    ...messages.slice(-10).map(({ role, content }) => ({ role, content: String(content) })),
-  ];
+function cleanTitle(text) {
+  return text.replace(/<think>[\s\S]*?<\/think>/g, '').split('\n').find((l) => l.trim())?.replace(/^(title:)?\s*["'*#]*|["'*.]*\s*$/gi, '').trim().slice(0, 60) || '';
+}
+
+async function titleFor(question) {
+  const fallback = question.length > 48 ? `${question.slice(0, 45).trim()}…` : question;
+  try {
+    const t = cleanTitle(await ollama.complete(model, `Write a 3 to 6 word title for a conversation that starts with this question. Reply with only the title.\n\nQuestion: ${question}`, { num_ctx: NUM_CTX }));
+    return t || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+// Streams NDJSON events to the browser:
+// {type:'chat'} (which saved chat this is), {type:'sources'}, {type:'thinking'|'token'},
+// {type:'done'|'error'}, then {type:'title'} if a new chat just got its name.
+//
+// Body: { message, chatId?, truncate? }. With no chatId a new chat is created. `truncate` cuts the
+// chat to that many messages first, which is how editing a question and "Retry" work.
+// Also accepts { messages: [...] } for a one-off chat that isn't saved.
+async function handleChat(req, res) {
+  const body = await readBody(req);
+  let chat = null;
+  let question;
+  let history;
+  if (Array.isArray(body.messages)) {
+    history = body.messages.slice(0, -1);
+    question = String(body.messages.at(-1)?.content || '').trim();
+  } else {
+    question = String(body.message || '').trim();
+    chat = body.chatId ? chats.get(body.chatId) : chats.create();
+    if (!chat) return json(res, 404, { error: 'Chat not found' });
+    if (Number.isInteger(body.truncate) && body.truncate >= 0) chat.messages = chat.messages.slice(0, body.truncate);
+    history = chat.messages.slice();
+  }
+  if (!question) return json(res, 400, { error: 'Missing message' });
+
+  const sources = findSources(question, history);
+  const convo = buildPrompt(question, history, sources);
+  if (chat) {
+    chat.messages.push({ role: 'user', content: question, at: Date.now() });
+    chats.save(chat);
+  }
 
   res.writeHead(200, { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' });
-  const send = (obj) => res.write(JSON.stringify(obj) + '\n');
+  const send = (obj) => !res.writableEnded && res.write(JSON.stringify(obj) + '\n');
   const abort = new AbortController();
   res.on('close', () => abort.abort());
 
-  send({ type: 'sources', sources: sources.map((s) => ({ doc: s.doc, text: s.text })) });
+  if (chat) send({ type: 'chat', id: chat.id, title: chat.title });
+  send({ type: 'sources', sources });
+  const answer = { role: 'assistant', content: '', thinking: '', sources, at: Date.now() };
   try {
-    for await (const part of ollama.chat(model, convo, abort.signal)) {
-      if (part.thinking) send({ type: 'thinking', token: part.thinking });
-      if (part.token) send({ type: 'token', token: part.token });
-      if (part.stats) send({ type: 'done', model, ...part.stats });
+    for await (const part of ollama.chat(model, convo, { signal: abort.signal, options: { num_ctx: NUM_CTX, temperature: 0.3 } })) {
+      if (part.thinking) {
+        answer.thinking += part.thinking;
+        send({ type: 'thinking', token: part.thinking });
+      }
+      if (part.token) {
+        answer.content += part.token;
+        send({ type: 'token', token: part.token });
+      }
+      if (part.stats) {
+        answer.stats = { model, ...part.stats };
+        send({ type: 'done', ...answer.stats });
+      }
     }
   } catch (err) {
-    if (!abort.signal.aborted) send({ type: 'error', error: err.message });
+    if (abort.signal.aborted) answer.stopped = true;
+    else {
+      answer.error = err.message;
+      send({ type: 'error', error: err.message });
+    }
+  }
+
+  if (chat) {
+    if (!answer.thinking) delete answer.thinking;
+    chat.messages.push(answer);
+    chats.save(chat);
+    if (!chat.title && !answer.error) {
+      chat.title = abort.signal.aborted ? question.slice(0, 60) : await titleFor(question);
+      chats.save(chat);
+      send({ type: 'title', id: chat.id, title: chat.title });
+    }
   }
   res.end();
 }
@@ -145,6 +277,31 @@ async function handleUpload(req, res) {
   const content = data && BINARY_TYPES.includes(ext) ? extractText(fileName, Buffer.from(data, 'base64')) : text;
   if (typeof content !== 'string' || !content.trim()) return json(res, 400, { error: `${fileName} is empty` });
   return json(res, 200, index.add(fileName, content));
+}
+
+// Saved chats: list, open, rename, delete, and create (used to bring back a deleted chat).
+async function handleChats(req, res, id) {
+  if (!id) {
+    if (req.method === 'GET') return json(res, 200, chats.list());
+    if (req.method === 'POST') {
+      const { title = '', messages = [] } = await readBody(req);
+      const clean = (Array.isArray(messages) ? messages : [])
+        .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+        .slice(-500);
+      return json(res, 200, chats.create({ title: String(title).slice(0, 80), messages: clean }));
+    }
+  }
+  const chat = chats.get(id);
+  if (!chat) return json(res, 404, { error: 'Chat not found' });
+  if (req.method === 'GET') return json(res, 200, chat);
+  if (req.method === 'PATCH') {
+    const { title } = await readBody(req);
+    if (typeof title === 'string' && title.trim()) chat.title = title.trim().slice(0, 80);
+    chats.save(chat);
+    return json(res, 200, { id: chat.id, title: chat.title });
+  }
+  if (req.method === 'DELETE') return json(res, 200, { ok: chats.remove(id) });
+  json(res, 405, { error: 'Method not allowed' });
 }
 
 const routes = {
@@ -181,6 +338,9 @@ const server = http.createServer(async (req, res) => {
     if (!isTrusted(req)) return json(res, 403, { error: 'Forbidden' });
     const route = routes[`${req.method} ${pathname}`];
     if (route) return await route(req, res);
+    if (pathname === '/api/chats' || pathname.startsWith('/api/chats/')) {
+      return await handleChats(req, res, decodeURIComponent(pathname.slice('/api/chats/'.length)));
+    }
     if (pathname.startsWith('/api/files/') && req.method === 'DELETE') {
       index.remove(decodeURIComponent(pathname.slice('/api/files/'.length)));
       return json(res, 200, { ok: true });
@@ -221,4 +381,4 @@ for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(0));
 
 if (require.main === module) listen(PORT);
 
-module.exports = { server, findSources, isTrusted };
+module.exports = { server, findSources, buildPrompt, isTrusted };

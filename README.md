@@ -43,12 +43,13 @@ Local models fix all four, but wiring one into an app is still fiddly. This tool
 |---|---|
 | 📄 **Reads real documents** | PDF, Word (.docx), PowerPoint (.pptx), Markdown, text, CSV, JSON and 50+ code file types. Drop a whole folder and it skips `node_modules`, `.git` and build output. |
 | 🔗 **Cited answers** | Answers point to their sources with `[1]` markers. Click one to see the exact passage. |
+| 💬 **Chat history that stays on topic** | Every chat is saved on disk with an auto-generated title. Search, rename, delete (with undo), edit a question or regenerate an answer. Follow-ups stay on the right document instead of mixing files. |
 | ⚡ **Streams token by token** | With a Stop button, tokens/sec readout, and a collapsible "reasoning" panel for thinking models. |
 | 🧠 **Picks a model for your machine** | 8 GB RAM → `qwen3:4b-instruct`, 16 GB → `gemma3:12b`, 32 GB+ → `qwen3:30b-instruct`. Switch to any installed model from the top bar. |
 | 🪄 **First-run setup in the browser** | If Ollama or the model is missing, the page tells you and downloads the model with a progress bar. A sample file lets you try it in one click. |
-| 🔒 **Private by default** | Listens only on `127.0.0.1`, blocks requests from other websites (including DNS rebinding), and stores your index as plain JSON in `./data`. |
+| 🔒 **Private by default** | Listens only on `127.0.0.1`, blocks requests from other websites (including DNS rebinding), and stores your files and chats as plain JSON in `./data`. |
 | 📦 **Zero dependencies** | Plain Node.js. Nothing to install, nothing to break, nothing to audit but your own code. |
-| 🌗 **Polished UI** | Light and dark mode, mobile layout, keyboard shortcuts, chats that survive a reload. |
+| 🌗 **Polished UI** | Light and dark mode, mobile layout, drag and drop anywhere, keyboard shortcuts. |
 
 <p align="center"><img src="https://raw.githubusercontent.com/madhavbuilds/create-own-ai/main/docs/screenshot-dark.png" alt="The app in dark mode, answering questions about a lease with citations" width="800" /></p>
 
@@ -63,13 +64,14 @@ flowchart LR
   D -->|streamed answer with citations| UI[Browser UI]
 ```
 
-It's meant to be read and changed. The whole app is about 1,900 lines with no build step:
+It's meant to be read and changed. The whole app is about 2,800 lines with no build step:
 
 ```
 my-app/
 ├── server.js         # HTTP server + API (status, files, chat, models)
 ├── lib/ollama.js     # talks to the local model
 ├── lib/search.js     # BM25 keyword search over your files
+├── lib/chats.js      # saved chats, one JSON file each
 ├── lib/extract.js    # PDF / DOCX / PPTX text extraction with only Node built-ins
 ├── samples/          # a sample document for the one-click demo
 └── public/           # the UI (HTML, CSS, JS)

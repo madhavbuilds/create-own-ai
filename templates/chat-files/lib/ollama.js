@@ -80,13 +80,14 @@ async function canThink(model) {
 }
 
 // Yields { thinking } and { token } while the model writes, then one { stats } with its speed.
-async function* chat(model, messages, signal) {
+// `options` are Ollama model options, e.g. { num_ctx, temperature }.
+async function* chat(model, messages, { signal, options } = {}) {
   // Some reasoning models can't switch thinking off, and asking them to makes the reasoning
   // leak into the answer. So for those, ask for it as a separate stream the UI can fold away.
   const think = (await canThink(model)) || undefined;
   const res = await fetch(`${OLLAMA_URL}/api/chat`, {
     method: 'POST',
-    body: JSON.stringify({ model, messages, stream: true, think }),
+    body: JSON.stringify({ model, messages, stream: true, think, options }),
     signal,
   });
   if (!res.ok) throw new Error(`Chat failed: ${res.status} ${await res.text()}`);
@@ -102,4 +103,18 @@ async function* chat(model, messages, signal) {
   }
 }
 
-module.exports = { OLLAMA_URL, pickModel, isRunning, listModels, hasModel, pull, chat };
+// A short one-off answer, e.g. a chat title. Reasoning is switched off where the model allows
+// it; a model that reasons anyway runs out of words first and returns '' (the caller falls back).
+async function complete(model, prompt, options = {}) {
+  const think = (await canThink(model)) ? false : undefined;
+  const res = await fetch(`${OLLAMA_URL}/api/generate`, {
+    method: 'POST',
+    body: JSON.stringify({ model, prompt, stream: false, think, options: { num_predict: 24, temperature: 0.2, ...options } }),
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) return '';
+  const text = (await res.json()).response || '';
+  return text.includes('<think>') && !text.includes('</think>') ? '' : text;
+}
+
+module.exports = { OLLAMA_URL, pickModel, isRunning, listModels, hasModel, pull, chat, complete };

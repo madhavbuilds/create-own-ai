@@ -29,6 +29,8 @@ before(async () => {
     req.on('end', () => {
       if (req.url === '/api/version') return res.end('{"version":"0.0.0"}');
       if (req.url === '/api/tags') return res.end(JSON.stringify({ models: [{ name: 'tiny:1b', size: 1, details: { parameter_size: '1B' } }] }));
+      if (req.url === '/api/show') return res.end(JSON.stringify({ capabilities: ['completion'] }));
+      if (req.url === '/api/generate') return res.end(JSON.stringify({ response: '"Rent Due Date"\n' }));
       if (req.url === '/api/chat') {
         lastChat = JSON.parse(body);
         res.write(JSON.stringify({ message: { content: 'Rent is due on the 1st ' } }) + '\n');
@@ -107,8 +109,61 @@ test('adds text and PDF files, then answers with sources', async () => {
   assert.match(lastChat.messages[0].content, /\[1\] \(from lease\.md\)/);
 });
 
+const chatEvents = async (body) => (await (await post('/api/chat', body)).text()).trim().split('\n').map((l) => JSON.parse(l));
+
+test('saves chats, names them, and keeps follow-ups in context', async () => {
+  const first = await chatEvents({ message: 'When is rent due?' });
+  assert.deepEqual(first.map((e) => e.type), ['chat', 'sources', 'token', 'token', 'done', 'title']);
+  const { id } = first[0];
+  assert.equal(first.at(-1).title, 'Rent Due Date');
+  assert.equal(lastChat.options.num_ctx, 8192);
+
+  await chatEvents({ chatId: id, message: 'What if I pay late?' });
+  // Earlier turns go to the model without their [n] markers, which pointed at other sources.
+  assert.deepEqual(lastChat.messages.slice(1).map((m) => [m.role, m.content]), [
+    ['user', 'When is rent due?'],
+    ['assistant', 'Rent is due on the 1st.'],
+    ['user', 'What if I pay late?'],
+  ]);
+
+  const list = await (await fetch(`${base}/api/chats`)).json();
+  assert.equal(list[0].id, id);
+  assert.equal(list[0].count, 4);
+  const saved = await (await fetch(`${base}/api/chats/${id}`)).json();
+  assert.equal(saved.messages[1].sources[0].doc, 'lease.md');
+  assert.equal(saved.messages[1].stats.model, 'tiny:1b');
+
+  // Regenerate the last answer: cut back to the question and ask it again.
+  await chatEvents({ chatId: id, message: 'What if I pay late?', truncate: 2 });
+  assert.equal((await (await fetch(`${base}/api/chats/${id}`)).json()).messages.length, 4);
+
+  const renamed = await fetch(`${base}/api/chats/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: '{"title":"Lease questions"}' });
+  assert.equal((await renamed.json()).title, 'Lease questions');
+  assert.equal((await fetch(`${base}/api/chats/${id}`, { method: 'DELETE' })).status, 200);
+  assert.equal((await fetch(`${base}/api/chats/${id}`)).status, 404);
+  assert.equal((await fetch(`${base}/api/chats/..%2f..%2fpackage`)).status, 404);
+});
+
+test('only shows the model the files a question is about', async () => {
+  await post('/api/files', { name: 'car-insurance.md', text: 'The insurance premium is 62 euros per month, due on the 15th. Cancel with 30 days notice.' });
+  await post('/api/files', { name: 'job.md', text: 'The employment contract can be ended with 3 months notice.' });
+  // Named file: only that file.
+  await chatEvents({ message: 'How much notice does the car insurance need?' });
+  assert.match(lastChat.messages[0].content, /from car-insurance\.md/);
+  assert.doesNotMatch(lastChat.messages[0].content, /from (job|lease)\.md/);
+  // A weak match in another file is left out.
+  await chatEvents({ message: 'When is the rent due each month?' });
+  assert.doesNotMatch(lastChat.messages[0].content, /from car-insurance\.md/);
+  // Follow-up with no keywords of its own leans on the previous question.
+  const { id } = (await chatEvents({ message: 'What does the employment contract say about notice?' }))[0];
+  await chatEvents({ chatId: id, message: 'Tell me more' });
+  assert.match(lastChat.messages[0].content, /from job\.md/);
+  for (const name of ['car-insurance.md', 'job.md']) assert.equal((await fetch(`${base}/api/files/${name}`, { method: 'DELETE' })).status, 200);
+  assert.deepEqual((await (await fetch(`${base}/api/files`)).json()).map((f) => f.name).sort(), ['lease.md', 'report.pdf']);
+});
+
 test('falls back to an overview for broad questions', async () => {
-  await post('/api/chat', { messages: [{ role: 'user', content: 'Summarize everything' }] });
+  await chatEvents({ messages: [{ role: 'user', content: 'Summarize everything' }] });
   assert.match(lastChat.messages[0].content, /\(from (lease\.md|report\.pdf)\)/);
 });
 

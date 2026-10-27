@@ -51,3 +51,22 @@ test('returns nothing for an empty index', () => {
   const idx = new FileIndex(fs.mkdtempSync(path.join(os.tmpdir(), 'cla-idx-')));
   assert.deepEqual(idx.search('anything'), []);
 });
+
+test('matches word forms and finds files named in a question', () => {
+  const idx = new FileIndex(fs.mkdtempSync(path.join(os.tmpdir(), 'cla-idx-')));
+  idx.add('car-insurance-2026.md', 'Payments are collected on the 15th.');
+  idx.add('notes/job contract.pdf', 'Notice period is three months.');
+  assert.equal(idx.search('when is the payment collected')[0].doc, 'car-insurance-2026.md');
+  assert.deepEqual(idx.namedIn('What does my car insurance cover?'), ['car-insurance-2026.md']);
+  assert.deepEqual(idx.namedIn('summarize job contract.pdf'), ['notes/job contract.pdf']);
+  assert.deepEqual(idx.namedIn('When is rent due?'), []);
+  assert.equal(idx.overview(5, ['notes/job contract.pdf']).length, 1);
+});
+
+test('upgrades an index saved by an older version', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cla-idx-'));
+  const old = { 'a.md': { name: 'a.md', chars: 20, added: 1, chunks: [{ text: 'Monthly payments due', tokens: ['monthly', 'payments', 'due'] }] } };
+  fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(old));
+  const idx = new FileIndex(dir);
+  assert.equal(idx.search('payment')[0].doc, 'a.md');
+});

@@ -16,11 +16,14 @@ Your browser opens at http://localhost:3000. If Ollama or the model is missing, 
 2. When you ask a question, `lib/search.js` finds the most relevant chunks with BM25 keyword search. Broad questions like "summarize my files" get an overview of your most recent files instead.
 3. Those chunks go to the local model through Ollama (`lib/ollama.js`), which streams back an answer citing them as `[1]`, `[2]`...
 
-Your files are indexed in `data/index.json`. Delete that folder to start fresh. Chats are kept in your browser's local storage; "New chat" clears them.
+Follow-up questions ("and what about the deposit?") stay on the file the conversation is about: the previous question helps pick passages, a question that names a file only looks in that file, and weakly matching passages from unrelated files are left out so answers don't mix documents.
+
+Your files are indexed in `data/index.json` and every chat is saved as a JSON file in `data/chats/`. Delete the `data` folder to start fresh.
 
 ## Customize
 
 - **Change the personality or rules:** edit `SYSTEM_PROMPT` in `server.js`.
+- **Change how passages are picked:** `findSources()` in `server.js`.
 - **Use a different model:** pick one from the menu at the top, run `MODEL=llama3.2:3b npm run dev`, or change `pickModel()` in `lib/ollama.js`.
 - **Change the look:** everything is in `public/style.css`. The colors are at the top.
 - **Change the sample document:** replace the file in `samples/`.
@@ -34,6 +37,7 @@ Your files are indexed in `data/index.json`. Delete that folder to start fresh. 
 | `PORT` | 3000 (or the next free port) | |
 | `NO_OPEN` | unset | set to `1` to not open the browser |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | |
+| `NUM_CTX` | 8192 | how many tokens the model reads at once; higher remembers more but uses more memory |
 
 ## Privacy
 

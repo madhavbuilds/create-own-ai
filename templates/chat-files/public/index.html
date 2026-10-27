@@ -2,80 +2,108 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="color-scheme" content="light dark" />
   <title>{{APP_NAME}}</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <aside class="sidebar" id="sidebar">
+  <aside class="sidebar" id="sidebar" aria-label="Chats and files">
     <header class="brand">
-      <span class="dot" id="statusDot" role="status" aria-label="Checking connection"></span>
+      <svg class="logo-mark" aria-hidden="true" width="26" height="26" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M9 11h14M9 16h10M9 21h7" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
       <h1>{{APP_NAME}}</h1>
-      <button class="icon-btn close-sidebar" id="closeSidebar" aria-label="Close sidebar">✕</button>
+      <button class="icon-btn" id="collapseSidebar" data-icon="sidebar" title="Hide sidebar" aria-label="Hide sidebar"></button>
     </header>
-    <p class="tagline">Chat with your files. Nothing leaves this computer.</p>
 
-    <label class="drop" id="drop">
-      <input type="file" id="fileInput" multiple hidden />
-      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-      <strong>Drop files or folders</strong>
-      <span>or click to browse<br />PDF, Word, PowerPoint, text, Markdown, CSV, code</span>
-    </label>
-    <div class="upload-status" id="uploadStatus" hidden aria-live="polite"></div>
+    <button class="new-chat" id="newChat" title="New chat (Ctrl+Shift+O)"><span data-icon="plus"></span>New chat</button>
 
-    <h2>Your files <span id="fileCount" class="count"></span></h2>
-    <ul id="fileList" class="files"></ul>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tabChats" aria-selected="true" aria-controls="panelChats">Chats</button>
+      <button role="tab" id="tabFiles" aria-selected="false" aria-controls="panelFiles">Files <span class="badge" id="fileCount" hidden></span></button>
+    </div>
+
+    <section class="panel" id="panelChats" role="tabpanel" aria-labelledby="tabChats">
+      <label class="search">
+        <span data-icon="search"></span>
+        <input id="chatSearch" type="search" placeholder="Search chats" aria-label="Search chats" />
+      </label>
+      <nav id="chatList" class="chat-list"></nav>
+    </section>
+
+    <section class="panel" id="panelFiles" role="tabpanel" aria-labelledby="tabFiles" hidden>
+      <label class="drop" id="drop">
+        <input type="file" id="fileInput" multiple hidden />
+        <span class="drop-icon" data-icon="upload"></span>
+        <strong>Add files or folders</strong>
+        <span>Drop them here or click to browse<br />PDF, Word, PowerPoint, text, Markdown, CSV, code</span>
+      </label>
+      <div class="upload-status" id="uploadStatus" hidden aria-live="polite">
+        <div class="upload-text" id="uploadText"></div>
+        <div class="progress"><div id="uploadBar"></div></div>
+      </div>
+      <ul id="fileList" class="files"></ul>
+    </section>
 
     <footer class="meta">
-      <div id="meta"></div>
-      <div class="privacy">🔒 Private: runs on 127.0.0.1, no cloud</div>
+      <span class="dot" id="statusDot" role="status" aria-label="Checking connection"></span>
+      <span id="meta">Connecting…</span>
+      <span class="private" title="Runs on 127.0.0.1. Nothing is sent to the internet."><span data-icon="lock"></span>Private</span>
     </footer>
   </aside>
 
   <main class="chat">
     <header class="topbar">
-      <button class="icon-btn open-sidebar" id="openSidebar" aria-label="Show files">☰</button>
+      <button class="icon-btn open-sidebar" id="openSidebar" data-icon="sidebar" title="Show sidebar" aria-label="Show sidebar"></button>
+      <button class="icon-btn new-chat-mini" id="newChatMini" data-icon="plus" title="New chat" aria-label="New chat"></button>
+      <h2 class="chat-title" id="chatTitle" title="Rename chat">New chat</h2>
       <label class="model-pick">
         <span class="sr-only">Model</span>
+        <span data-icon="chip"></span>
         <select id="modelSelect" title="Switch model"></select>
       </label>
-      <button class="ghost-btn" id="newChat" title="Start a new conversation">New chat</button>
     </header>
 
     <div id="banner" class="banner" hidden></div>
 
-    <div id="messages" class="messages" aria-live="polite">
+    <div class="scroller" id="scroller">
+      <div id="messages" class="messages" aria-live="polite"></div>
+
       <div class="empty" id="empty">
-        <div class="logo" aria-hidden="true">
-          <svg width="44" height="44" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M9 11h14M9 16h10M9 21h7" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
-        </div>
-        <h2>Ask anything about your files</h2>
-        <p>Your files and questions stay on this computer. No account, no API key, works offline.</p>
-        <button class="sample-btn" id="sampleBtn" hidden>Try it with a sample lease agreement</button>
-        <div class="suggestions">
-          <button class="suggestion">Summarize my files in 5 bullet points</button>
-          <button class="suggestion">What are the key dates or deadlines mentioned?</button>
-          <button class="suggestion">What questions should I be asking about this?</button>
-        </div>
+        <svg class="empty-logo" aria-hidden="true" width="48" height="48" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M9 11h14M9 16h10M9 21h7" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
+        <h2 id="emptyTitle">What do you want to know?</h2>
+        <p id="emptyText">Ask about your files, or anything else. It all stays on this computer.</p>
+        <button class="sample-btn" id="sampleBtn" hidden><span data-icon="sparkle"></span>Try it with a sample lease</button>
+        <div class="suggestions" id="suggestions"></div>
       </div>
     </div>
 
+    <button class="to-bottom" id="toBottom" data-icon="arrowDown" aria-label="Scroll to the latest message" hidden></button>
+
     <form id="composer" class="composer">
-      <textarea id="input" rows="1" placeholder="Ask about your files..." autocomplete="off" aria-label="Your question"></textarea>
-      <button type="submit" id="send" class="primary">Send</button>
-      <button type="button" id="stop" class="primary stop" hidden>Stop</button>
+      <div class="composer-box">
+        <button type="button" class="icon-btn attach" id="attach" data-icon="paperclip" title="Add files" aria-label="Add files"></button>
+        <textarea id="input" rows="1" placeholder="Ask about your files…" autocomplete="off" aria-label="Your question"></textarea>
+        <button type="submit" id="send" class="send" data-icon="arrowUp" title="Send (Enter)" aria-label="Send"></button>
+        <button type="button" id="stop" class="send stop" data-icon="stop" title="Stop (Esc)" aria-label="Stop" hidden></button>
+      </div>
+      <p class="hint" id="hint">Answers come from a model on this computer and can be wrong. Check the sources.</p>
     </form>
-    <p class="hint">Enter to send · Shift+Enter for a new line · Esc to stop</p>
   </main>
 
+  <div class="drop-overlay" aria-hidden="true">
+    <div><span data-icon="upload"></span><strong>Drop to add to your files</strong><span>Stays on this computer</span></div>
+  </div>
+
   <dialog id="sourceDialog" class="source-dialog">
-    <header><strong id="sourceTitle"></strong><button class="icon-btn" id="closeSource" aria-label="Close">✕</button></header>
-    <pre id="sourceText"></pre>
+    <header>
+      <div><div class="eyebrow" id="sourceEyebrow"></div><strong id="sourceTitle"></strong></div>
+      <button class="icon-btn" id="closeSource" data-icon="x" aria-label="Close"></button>
+    </header>
+    <div id="sourceText" class="source-text"></div>
   </dialog>
 
-  <div id="toasts" class="toasts" aria-live="assertive"></div>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
 
   <script src="app.js"></script>
 </body>
